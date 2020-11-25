@@ -162,6 +162,7 @@ class SequenceGenerator(nn.Module):
         """
         return self._generate(sample, **kwargs)
 
+    #@profile
     def _generate(
         self,
         sample: Dict[str, Dict[str, Tensor]],
@@ -701,6 +702,7 @@ class EnsembleModel(nn.Module):
             for model in self.models
         ]
 
+    #@profile
     @torch.jit.export
     def forward_decoder(
         self,

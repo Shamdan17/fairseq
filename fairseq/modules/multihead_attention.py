@@ -15,6 +15,8 @@ from fairseq import utils
 from fairseq.incremental_decoding_utils import with_incremental_state
 from fairseq.modules.fairseq_dropout import FairseqDropout
 from fairseq.modules.quant_noise import quant_noise
+from fairseq.modules.binarizing_layer import BinarizingLayer, BinarizingLinear
+
 
 
 @with_incremental_state
@@ -63,10 +65,18 @@ class MultiheadAttention(nn.Module):
             "Self-attention requires query, key and " "value to be of the same size"
         )
 
+        # self.k_proj = quant_noise(BinarizingLinear(nn.Linear(self.kdim, embed_dim, bias=bias)), q_noise, qn_block_size)
+        # self.v_proj = quant_noise(BinarizingLinear(nn.Linear(self.vdim, embed_dim, bias=bias)), q_noise, qn_block_size)
+        # self.q_proj = quant_noise(BinarizingLinear(nn.Linear(embed_dim, embed_dim, bias=bias)), q_noise, qn_block_size)
+
+
         self.k_proj = quant_noise(nn.Linear(self.kdim, embed_dim, bias=bias), q_noise, qn_block_size)
         self.v_proj = quant_noise(nn.Linear(self.vdim, embed_dim, bias=bias), q_noise, qn_block_size)
         self.q_proj = quant_noise(nn.Linear(embed_dim, embed_dim, bias=bias), q_noise, qn_block_size)
 
+        # self.binarize = BinarizingLayer()
+
+        # self.out_proj = quant_noise(nn.Linear(embed_dim, embed_dim, bias=bias), q_noise, qn_block_size)
         self.out_proj = quant_noise(nn.Linear(embed_dim, embed_dim, bias=bias), q_noise, qn_block_size)
 
         if add_bias_kv:
@@ -108,6 +118,7 @@ class MultiheadAttention(nn.Module):
         if self.bias_v is not None:
             nn.init.xavier_normal_(self.bias_v)
 
+    #@profile
     def forward(
         self,
         query,
@@ -179,6 +190,7 @@ class MultiheadAttention(nn.Module):
                 v_proj_weight=self.v_proj.weight,
             )
 
+        # print("I AM HERE")
         if incremental_state is not None:
             saved_state = self._get_input_buffer(incremental_state)
             if saved_state is not None and "prev_key" in saved_state:
@@ -189,6 +201,7 @@ class MultiheadAttention(nn.Module):
                     key = value = None
         else:
             saved_state = None
+
 
         if self.self_attention:
             q = self.q_proj(query)

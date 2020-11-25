@@ -11,6 +11,7 @@ from fairseq import utils
 from fairseq.modules import LayerNorm, MultiheadAttention
 from fairseq.modules.quant_noise import quant_noise
 from fairseq.modules.fairseq_dropout import FairseqDropout
+from fairseq.modules.binarizing_layer import BinarizingLayer, BinarizingLinear
 from torch import Tensor
 
 
@@ -58,10 +59,12 @@ class TransformerEncoderLayer(nn.Module):
         self.final_layer_norm = LayerNorm(self.embed_dim)
 
     def build_fc1(self, input_dim, output_dim, q_noise, qn_block_size):
-        return quant_noise(nn.Linear(input_dim, output_dim), p=q_noise, block_size=qn_block_size)
+        # return quant_noise(nn.Linear(input_dim, output_dim), p=q_noise, block_size=qn_block_size)
+        return quant_noise(BinarizingLinear(nn.Linear(input_dim, output_dim)), p=q_noise, block_size=qn_block_size)
 
     def build_fc2(self, input_dim, output_dim, q_noise, qn_block_size):
-        return quant_noise(nn.Linear(input_dim, output_dim), p=q_noise, block_size=qn_block_size)
+        # return quant_noise(nn.Linear(input_dim, output_dim), p=q_noise, block_size=qn_block_size)
+        return quant_noise(BinarizingLinear(nn.Linear(input_dim, output_dim)), p=q_noise, block_size=qn_block_size)
 
     def build_self_attention(self, embed_dim, args):
         return MultiheadAttention(
@@ -87,6 +90,7 @@ class TransformerEncoderLayer(nn.Module):
                     state_dict["{}.{}.{}".format(name, new, m)] = state_dict[k]
                     del state_dict[k]
 
+    #@profile
     def forward(self, x, encoder_padding_mask, attn_mask: Optional[Tensor] = None):
         """
         Args:
@@ -211,10 +215,10 @@ class TransformerDecoderLayer(nn.Module):
         self.onnx_trace = False
 
     def build_fc1(self, input_dim, output_dim, q_noise, qn_block_size):
-        return quant_noise(nn.Linear(input_dim, output_dim), q_noise, qn_block_size)
+        return quant_noise(BinarizingLinear(nn.Linear(input_dim, output_dim)), q_noise, qn_block_size)
 
     def build_fc2(self, input_dim, output_dim, q_noise, qn_block_size):
-        return quant_noise(nn.Linear(input_dim, output_dim), q_noise, qn_block_size)
+        return quant_noise(BinarizingLinear(nn.Linear(input_dim, output_dim)), q_noise, qn_block_size)
 
     def build_self_attention(self, embed_dim, args, add_bias_kv=False, add_zero_attn=False):
         return MultiheadAttention(
@@ -243,6 +247,7 @@ class TransformerDecoderLayer(nn.Module):
     def prepare_for_onnx_export_(self):
         self.onnx_trace = True
 
+    #@profile
     def forward(
         self,
         x,

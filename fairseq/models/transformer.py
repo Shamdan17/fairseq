@@ -28,6 +28,7 @@ from fairseq.modules import (
     TransformerEncoderLayer,
 )
 from fairseq.modules.quant_noise import quant_noise as apply_quant_noise_
+from fairseq.modules.binarizing_layer import BinarizingLayer, BinarizingLinear, binarizingFunction
 from torch import Tensor
 
 
@@ -374,6 +375,7 @@ class TransformerEncoder(FairseqEncoder):
             x = self.quant_noise(x)
         return x, embed
 
+    #@profile
     def forward(self, src_tokens, src_lengths, return_all_hiddens: bool = False):
         """
         Args:
@@ -397,7 +399,12 @@ class TransformerEncoder(FairseqEncoder):
                   Only populated if *return_all_hiddens* is True.
         """
         x, encoder_embedding = self.forward_embedding(src_tokens)
-
+        # print(x)
+        # bl = BinarizingLayer()
+        # print(x.shape)
+        # print(binarizingFunction.apply(x))
+        # import pdb
+        # pdb.set_trace()
         # B x T x C -> T x B x C
         x = x.transpose(0, 1)
 
@@ -619,11 +626,11 @@ class TransformerDecoder(FairseqIncrementalDecoder):
                 tie_proj=args.tie_adaptive_proj,
             )
         elif self.share_input_output_embed:
-            self.output_projection = nn.Linear(
+            self.output_projection = BinarizingLinear(nn.Linear(
                 self.embed_tokens.weight.shape[1],
                 self.embed_tokens.weight.shape[0],
                 bias=False,
-            )
+            ))
             self.output_projection.weight = self.embed_tokens.weight
         else:
             self.output_projection = nn.Linear(
@@ -636,6 +643,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
     def build_decoder_layer(self, args, no_encoder_attn=False):
         return TransformerDecoderLayer(args, no_encoder_attn)
 
+    #@profile
     def forward(
         self,
         prev_output_tokens,
@@ -697,7 +705,7 @@ class TransformerDecoder(FairseqIncrementalDecoder):
     super().extract_features, but super() is not supported in torchscript. Aa copy of
     this function is made to be used in the subclass instead.
     """
-
+    #@profile
     def extract_features_scriptable(
         self,
         prev_output_tokens,
@@ -943,6 +951,49 @@ def base_architecture(args):
     args.layernorm_embedding = getattr(args, "layernorm_embedding", False)
     args.tie_adaptive_weights = getattr(args, "tie_adaptive_weights", False)
 
+@register_model_architecture("transformer", "32transformer")
+def thirtytwo_architecture(args):
+    args.encoder_embed_path = getattr(args, "encoder_embed_path", None)
+    args.encoder_embed_dim = getattr(args, "encoder_embed_dim", 16384)
+    args.encoder_ffn_embed_dim = getattr(args, "encoder_ffn_embed_dim", 65536)
+    args.encoder_layers = getattr(args, "encoder_layers", 6)
+    args.encoder_attention_heads = getattr(args, "encoder_attention_heads", 8)
+    args.encoder_normalize_before = getattr(args, "encoder_normalize_before", False)
+    args.encoder_learned_pos = getattr(args, "encoder_learned_pos", False)
+    args.decoder_embed_path = getattr(args, "decoder_embed_path", None)
+    args.decoder_embed_dim = getattr(args, "decoder_embed_dim", args.encoder_embed_dim)
+    args.decoder_ffn_embed_dim = getattr(
+        args, "decoder_ffn_embed_dim", args.encoder_ffn_embed_dim
+    )
+    args.decoder_layers = getattr(args, "decoder_layers", 6)
+    args.decoder_attention_heads = getattr(args, "decoder_attention_heads", 8)
+    args.decoder_normalize_before = getattr(args, "decoder_normalize_before", False)
+    args.decoder_learned_pos = getattr(args, "decoder_learned_pos", False)
+    args.attention_dropout = getattr(args, "attention_dropout", 0.0)
+    args.activation_dropout = getattr(args, "activation_dropout", 0.0)
+    args.activation_fn = getattr(args, "activation_fn", "relu")
+    args.dropout = getattr(args, "dropout", 0.1)
+    args.adaptive_softmax_cutoff = getattr(args, "adaptive_softmax_cutoff", None)
+    args.adaptive_softmax_dropout = getattr(args, "adaptive_softmax_dropout", 0)
+    args.share_decoder_input_output_embed = getattr(
+        args, "share_decoder_input_output_embed", False
+    )
+    args.share_all_embeddings = getattr(args, "share_all_embeddings", False)
+    args.no_token_positional_embeddings = getattr(
+        args, "no_token_positional_embeddings", False
+    )
+    args.adaptive_input = getattr(args, "adaptive_input", False)
+    args.no_cross_attention = getattr(args, "no_cross_attention", False)
+    args.cross_self_attention = getattr(args, "cross_self_attention", False)
+
+    args.decoder_output_dim = getattr(
+        args, "decoder_output_dim", args.decoder_embed_dim
+    )
+    args.decoder_input_dim = getattr(args, "decoder_input_dim", args.decoder_embed_dim)
+
+    args.no_scale_embedding = getattr(args, "no_scale_embedding", False)
+    args.layernorm_embedding = getattr(args, "layernorm_embedding", False)
+    args.tie_adaptive_weights = getattr(args, "tie_adaptive_weights", False)
 
 @register_model_architecture("transformer", "transformer_iwslt_de_en")
 def transformer_iwslt_de_en(args):
